@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import axios from "axios";
 import { filters } from "./constants";
 import NewsArticles from "./articles";
-
+import { Puff } from "react-loader-spinner";
 const Navigation = () => {
   const pages = [
     {
@@ -25,15 +25,28 @@ const Navigation = () => {
   const [filteredArticles, setFilteredArticles] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState(0);
+  const [loading, setLoading] = useState(true); // Initialize loading state
 
   useEffect(() => {
-    const apiKey = import.meta.env.VITE_NEWS_API_KEY;
+    let apiKey = import.meta.env.VITE_BACKUP_API_KEY;
     let apiUrl;
+
+    const cachedArticles = localStorage.getItem("cachedArticles");
+    if (cachedArticles) {
+      try {
+        setArticles(JSON.parse(cachedArticles));
+        console.log("Cached articles:", cachedArticles);
+        setLoading(false); // Set loading to false when using cached data
+      } catch (error) {
+        console.error("Error parsing cached data:", error);
+      }
+      return; // Skip the API request
+    }
 
     if (activeFilter === null || activeFilter === 0) {
       apiUrl = `https://newsapi.org/v2/top-headlines?country=nz&apiKey=${apiKey}`;
     } else if (activeFilter === filters.length - 1) {
-      apiUrl = `https://newsapi.org/v2/top-headlines?apiKey=${apiKey}`;
+      apiUrl = `https://newsapi.org/v2/top-headlines?country=us&apiKey=${apiKey}`;
     } else {
       const category = filters[activeFilter].name.toLowerCase();
       apiUrl = `https://newsapi.org/v2/top-headlines?country=nz&category=${category}&apiKey=${apiKey}`;
@@ -46,15 +59,50 @@ const Navigation = () => {
     axios
       .get(apiUrl)
       .then((response) => {
-        setArticles(response.data.articles);
+        setTimeout(() => {
+          setArticles(response.data.articles);
+          setLoading(false); // Set loading to false after articles are set
+        }, 5000); // 5000 milliseconds = 5 seconds
       })
-      .catch((err) => {
-        console.error("Error Fetching Data:", err);
+      .catch((error) => {
+        if (error.response) {
+          // The server responded with an error status code (4xx or 5xx)
+          const statusCode = error.response.status;
+          const responseData = error.response.data;
+
+          if (statusCode === 429) {
+            console.error(
+              "Error 429: Too Many Requests - You have exceeded your rate limit."
+            );
+            apiKey = import.meta.env.VITE_BACKUP_API_KEY;
+          } else if (statusCode === 401) {
+            console.error(
+              "Error 401: Unauthorized - Your API key is invalid or missing."
+            );
+          } else if (statusCode === 426) {
+            console.error(
+              "Error 426: Upgrade Required - Your API key needs to be upgraded."
+            );
+          } else {
+            console.error(`Error ${statusCode}: ${responseData.message}`);
+          }
+        } else if (error.request) {
+          // The request was made, but no response was received
+          console.error("Request error:", error.request);
+        } else {
+          // Something else happened in making the request
+          console.error("Other error:", error.message);
+        }
+      })
+      .finally(() => {
+        setLoading(false); // Set loading to false when request completes (either success or error)
       });
   }, [activeFilter, searchTerm]);
 
   useEffect(() => {
-    setShowFiltersAndSearch(location.pathname.startsWith("/articles/0"));
+    if (setLoading == true) {
+      showFiltersAndSearch(false);
+    } else setShowFiltersAndSearch(location.pathname.startsWith("/articles/0"));
   }, [location]);
 
   useEffect(() => {
@@ -111,7 +159,22 @@ const Navigation = () => {
         className={`article-box ${
           showFiltersAndSearch ? "article-box-active" : ""
         }`}>
-        <NewsArticles articles={filteredArticles} />
+        {loading ? (
+          // Display the Loader component while loading is true
+          <Puff
+            ariaLabel="puff"
+            color="white"
+            height="100"
+            width="100"
+            radius={1}
+            wrapperClass=""
+            wrapperStyle={{}}
+            visible={true}
+          />
+        ) : (
+          // Display NewsArticles component when loading is false
+          <NewsArticles articles={filteredArticles} />
+        )}
       </div>
     </div>
   );

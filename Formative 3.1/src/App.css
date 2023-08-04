@@ -187,6 +187,8 @@
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+  opacity: 0;
+  max-height: 0;
   transition: opacity 0.3s ease, max-height 0.3s ease;
 }
 .article-box-active {

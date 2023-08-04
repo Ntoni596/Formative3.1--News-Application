@@ -29,6 +29,6 @@ export const filters = [
   },
   {
     id: 7,
-    name: "Global",
+    name: "US News",
   },
 ];
